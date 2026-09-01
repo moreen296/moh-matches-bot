@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg">
+<meta name="theme-color" content="#315b38">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MOH MATCHES BOT">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MOH MATCHES BOT — Matches / Differs</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#090d14;color:#eef3f8;font-family:Inter,system-ui,Arial,sans-serif}
+.wrap{max-width:520px;margin:auto;padding:18px}.card{background:#111824;border:1px solid #263244;border-radius:20px;padding:18px;margin-bottom:14px;box-shadow:0 10px 35px #0005}
+h1{font-size:22px;margin:0 0 4px}.muted{color:#8e9bad;font-size:13px}.label{display:block;color:#9aa7b8;font-size:12px;margin:16px 0 7px;text-transform:uppercase;letter-spacing:.08em}
+select,button{width:100%;border:0;border-radius:12px;padding:14px;font-size:15px;font-weight:700}
+select{background:#1a2331;color:#fff;border:1px solid #334154}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mode{background:#202b3a;color:#dfe8f3;border:1px solid #344255}.mode.active{background:#eef3f8;color:#081019}
+.scan{margin-top:12px;background:#4c7dff;color:white}.confirm{margin-top:10px;background:#315b38;color:#fff;border:1px solid #4f8b59}.confirmed{margin-top:12px;text-align:center;background:#0c121c;border:1px solid #334154;border-radius:14px;padding:12px}
+.confirmed.ready{border-color:#37d67a;background:#0b1d16;box-shadow:0 0 18px #37d67a33}
+.confirmed.ready .label2,.confirmed.ready .value,.confirmed.ready .state{color:#37d67a}.confirmed .label2{font-size:11px;color:#8e9bad;text-transform:uppercase;letter-spacing:.08em}.confirmed .value{font-size:34px;font-weight:900;margin-top:3px}.confirmed .state{font-size:12px;color:#9eabba;margin-top:4px}.status{display:flex;justify-content:space-between;align-items:center;margin:8px 0}.dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:#667085;margin-right:7px}.live .dot{background:#37d67a}
+.pred{text-align:center;padding:18px 0}.big{font-size:76px;font-weight:900;line-height:1}.confidence{font-size:14px;color:#9eabba;margin-top:10px}
+.digits{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.digit{width:39px;height:39px;border-radius:9px;background:#1b2533;display:grid;place-items:center;font-weight:800}.digit.top{outline:2px solid #4c7dff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stat{background:#0c121c;border-radius:12px;padding:12px}.stat b{display:block;font-size:20px;margin-top:3px}
+.log{max-height:170px;overflow:auto;font-size:12px;color:#aab5c4}.log div{padding:7px 0;border-bottom:1px solid #202a38}
+.smallbtn{background:#1b2533;color:#dce6f2;margin-top:10px}
+.warn{font-size:12px;color:#aab5c4;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>⚡ MOH MATCHES BOT</h1><div class="muted">MATCHES / DIFFERS • live analysis</div>
+    <label class="label">Volatility Index</label>
+    <select id="symbol"></select>
+    <div class="status" id="status"><span><i class="dot"></i><span id="statusText">Connecting…</span></span><span id="price">—</span></div>
+    <label class="label">Scan type</label>
+    <div class="row">
+      <button class="mode active" id="matches">MATCHES</button>
+      <button class="mode" id="differs">DIFFERS</button>
+    </div>
+    <button class="scan" id="scan">SCAN MARKET</button>
+    <button class="confirm" id="rescan">↻ RESCAN MARKET</button>
+    <button class="confirm" id="confirm">CONFIRM DIGIT</button>
+    <div class="confirmed">
+      <div class="label2">Confirmed Signal</div>
+      <div class="value" id="confirmedDigit">—</div>
+      <div class="state" id="confirmState">Waiting for a stable prediction</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="muted" id="contractLabel">MATCHES — LIVE NEXT-DIGIT PREDICTION</div>
+    <div class="pred"><div class="big" id="prediction">—</div><div class="confidence" id="confidence">Collecting live ticks…</div></div>
+    <div class="grid">
+      <div class="stat"><span class="muted">Predictions</span><b id="predCount">0</b></div>
+      <div class="stat"><span class="muted">Correct</span><b id="correct">0</b></div>
+      <div class="stat"><span class="muted">Accuracy</span><b id="accuracy">—</b></div>
+      <div class="stat"><span class="muted">Ticks stored</span><b id="tickCount">0</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="muted">RECENT DIGITS • MODEL USES 100–1000 TICKS</div>
+    <div class="digits" id="digits"></div>
+    <button class="smallbtn" id="clear">Clear prediction stats</button>
+  </div>
+
+  <div class="card warn">
+    <b>Paper-analysis prototype.</b><br>
+    The digit is a statistical estimate, not a guaranteed outcome. This version does not place Deriv trades or use account credentials. Accuracy is tracked only after a prediction is made and the next tick arrives.
+  </div>
+
+  <div class="card"><div class="muted">PREDICTION LOG</div><div class="log" id="log"></div></div>
+</div>
+
+<script>
+const WS_URL='wss://ws.derivws.com/websockets/v3?app_id=1089';
+const FALLBACK=[
+ ['Volatility 10 (1s)','1HZ10V'],['Volatility 25 (1s)','1HZ25V'],
+ ['Volatility 50 (1s)','1HZ50V'],['Volatility 75 (1s)','1HZ75V'],
+ ['Volatility 100 (1s)','1HZ100V'],['Volatility 10','R_10'],
+ ['Volatility 25','R_25'],['Volatility 50','R_50'],
+ ['Volatility 75','R_75'],['Volatility 100','R_100']
+];
+let ws, selected='1HZ100V', digits=[], mode='MATCHES', pending=null;
+let stats={pred:0,correct:0};
+let confirmedDigit=null;
+let confirmationScore=0;
+
+const $=id=>document.getElementById(id);
+function setStatus(t,live=false){$('statusText').textContent=t;$('status').className=live?'status live':'status'}
+function send(o){if(ws&&ws.readyState===1)ws.send(JSON.stringify(o))}
+function lastDigit(quote){
+  if(quote===null||quote===undefined)return null;
+  const s=String(quote);
+  const clean=(s.includes('e')||s.includes('E')) ? Number(quote).toFixed(8) : s;
+  const m=clean.match(/(\d)$/);
+  return m?Number(m[1]):null;
+}
+function renderDigits(){
+  $('digits').innerHTML=digits.slice(-30).map((d,i)=>`<span class="digit">${d}</span>`).join('');
+  $('tickCount').textContent=digits.length;
+}
+function connect(){
+  if(ws)try{ws.close()}catch(e){}
+  setStatus('Connecting…');
+  ws=new WebSocket(WS_URL);
+
+  ws.onopen=()=>{
+    setStatus('Live',true);
+    send({ping:1,req_id:99});
+    send({active_symbols:'brief',product_type:'basic',req_id:1});
+    subscribe(selected);
+  };
+
+  ws.onclose=()=>{
+    setStatus('Disconnected');
+    setTimeout(connect,3000);
+  };
+
+  ws.onerror=()=>setStatus('Connection error');
+
+  ws.onmessage=e=>{
+    let d;try{d=JSON.parse(e.data)}catch{return}
+
+    if(d.error){
+      setStatus('Data error');
+      log('ERROR: '+(d.error.message||'Deriv data error'));
+      return;
+    }
+
+    if(d.msg_type==='active_symbols'){
+      const list=d.active_symbols||[];
+      const v=list.filter(x=>
+        String(x.underlying_symbol_type||'').toLowerCase().includes('synthetic') ||
+        String(x.market||'').toLowerCase().includes('synthetic') ||
+        /volatility/i.test(x.underlying_symbol_name||'')
+      );
+
+      if(v.length){
+        const seen=new Set();
+        $('symbol').innerHTML='';
+        v.forEach(x=>{
+          if(!seen.has(x.underlying_symbol)){
+            seen.add(x.underlying_symbol);
+            const o=document.createElement('option');
+            o.value=x.underlying_symbol;
+            o.textContent=x.underlying_symbol_name||x.underlying_symbol;
+            $('symbol').appendChild(o);
+          }
+        });
+        if([...$('symbol').options].some(o=>o.value===selected)){
+          $('symbol').value=selected;
+        }else{
+          selected=$('symbol').value;
+          subscribe(selected);
+        }
+      }else if(!$('symbol').options.length){
+        fillFallback();
+        subscribe(selected);
+      }
+    }
+
+    if(d.msg_type==='history'){
+      const prices=d.history?.prices||[];
+      const historical=prices.map(lastDigit).filter(x=>Number.isInteger(x)&&x>=0&&x<=9);
+      if(historical.length){
+        digits=historical.slice(-1000);
+        renderDigits();
+        setStatus('Live — data received',true);
+        calcPrediction();
+        log('Loaded '+digits.length+' historical ticks');
+      }
+    }
+
+    if(d.msg_type==='tick'){
+      const q=d.tick?.quote;
+      if(q==null)return;
+      $('price').textContent=q;
+      const dig=lastDigit(q);
+      if(!Number.isInteger(dig)||dig<0||dig>9)return;
+
+      digits.push(dig);
+      if(digits.length>1000)digits.shift();
+      renderDigits();
+
+      settlePending(dig);
+      calcPrediction();
+    }
+  };
+}
+function fillFallback(){
+ $('symbol').innerHTML=FALLBACK.map(([n,s])=>`<option value="${s}">${n}</option>`).join('');
+ $('symbol').value=selected;
+}
+function subscribe(sym){
+ selected=sym;digits=[];pending=null;confirmedDigit=null;confirmationScore=0;renderDigits();$('prediction').textContent='—';$('confidence').textContent='Collecting live ticks…';$('confirmedDigit').textContent='—';$('confirmState').textContent='Waiting for a stable prediction';$('confirmedDigit').parentElement.classList.remove('ready');
+ send({forget_all:'ticks',req_id:4});
+  send({ticks_history:sym,count:1000,end:'latest',style:'ticks',req_id:2});
+ send({ticks:sym,subscribe:1,req_id:3});
+}
+function calcPrediction(){
+  if(digits.length<100){
+    $('prediction').textContent='—';
+    $('confidence').textContent=`Waiting for market data (${digits.length}/100 ticks)`;
+    return null;
+  }
+
+  const counts=Array(10).fill(0);
+  const n=digits.length;
+  const window=digits.slice(-Math.min(1000,n));
+
+  window.forEach((d,i)=>counts[d]+=1+(i/window.length)*1.5);
+
+  const last=digits[n-1];
+  const trans=Array(10).fill(0);
+  for(let i=Math.max(0,n-200);i<n-1;i++){
+    if(digits[i]===last)trans[digits[i+1]]++;
+  }
+
+  const scores=counts.map((x,d)=>x*0.72+trans[d]*2.2);
+  let best=0;
+  for(let d=1;d<10;d++)if(scores[d]>scores[best])best=d;
+
+  const total=scores.reduce((a,b)=>a+b,0);
+  const p=total?scores[best]/total:0;
+
+  $('prediction').textContent=best;
+  $('confidence').textContent=
+    `LIVE next-digit estimate: ${(p*100).toFixed(1)}% model score • ${window.length} ticks`;
+
+  // Stability: require the same candidate to be produced on consecutive
+  // recalculations before offering it as a confirmed signal.
+  if(confirmedDigit===best){
+    confirmationScore=Math.min(confirmationScore+1,5);
+  }else{
+    confirmedDigit=best;
+    confirmationScore=1;
+  }
+
+  if(confirmationScore>=3){
+    $('confirmedDigit').textContent=best;
+    $('confirmState').textContent=
+      mode==='MATCHES'
+      ? 'CONFIRMED candidate for MATCHES'
+      : 'CONFIRMED candidate to avoid for DIFFERS';
+    $('confirmedDigit').parentElement.classList.add('ready');
+  }else{
+    $('confirmedDigit').textContent='—';
+    $('confirmState').textContent=
+      `Checking stability (${confirmationScore}/3)`;
+    $('confirmedDigit').parentElement.classList.remove('ready');
+  }
+
+  return best;
+}
+function scan(){
+ const p=calcPrediction();if(p==null)return;
+ pending={digit:p,mode,at:Date.now(),symbol:selected};
+ $('contractLabel').textContent=`${mode} — LIVE NEXT-DIGIT PREDICTION`;
+ log(`SCAN ${mode}: digit ${p}`);
+}
+function settlePending(actual){
+ if(!pending)return;
+ const ok=pending.mode==='MATCHES'?actual===pending.digit:actual!==pending.digit;
+ stats.pred++;if(ok)stats.correct++;
+ $('predCount').textContent=stats.pred;$('correct').textContent=stats.correct;
+ $('accuracy').textContent=(stats.correct/stats.pred*100).toFixed(1)+'%';
+ log(`${ok?'✓':'✗'} ${pending.mode} ${pending.digit} → next digit ${actual}`);
+ pending=null;
+}
+function log(t){const x=document.createElement('div');x.textContent=new Date().toLocaleTimeString()+' — '+t;$('log').prepend(x);while($('log').children.length>30)$('log').lastChild.remove()}
+$('matches').onclick=()=>{mode='MATCHES';$('matches').classList.add('active');$('differs').classList.remove('active');$('contractLabel').textContent='MATCHES — LIVE NEXT-DIGIT PREDICTION';calcPrediction()};
+$('differs').onclick=()=>{mode='DIFFERS';$('differs').classList.add('active');$('matches').classList.remove('active');$('contractLabel').textContent='DIFFERS — LIVE NEXT-DIGIT PREDICTION';calcPrediction()};
+$('scan').onclick=scan;
+$('confirm').onclick=confirmDigit;
+$('rescan').onclick=rescan;
+$('symbol').onchange=e=>{selected=e.target.value;subscribe(selected)};
+$('clear').onclick=()=>{stats={pred:0,correct:0};pending=null;confirmedDigit=null;confirmationScore=0;$('confirmedDigit').textContent='—';$('confirmState').textContent='Waiting for a stable prediction';$('confirmedDigit').parentElement.classList.remove('ready');$('predCount').textContent='0';$('correct').textContent='0';$('accuracy').textContent='—';$('log').innerHTML=''};
+
+fillFallback();connect();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
