@@ -1,0 +1,10 @@
+{
+  "name": "MOH MATCHES BOT",
+  "short_name": "MOH Bot",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b2412",
+  "theme_color": "#315b38"
+}
