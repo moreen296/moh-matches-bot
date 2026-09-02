@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MOH MATCHES BOT — Live Validator</title>
+<style>
+:root{--g:#38f05b;--bg:#030806;--panel:#07150d;--line:#125c2a;--muted:#91a79a;--red:#ff5d67}
+*{box-sizing:border-box}body{margin:0;background:#020504;color:#eef8f0;font-family:Arial,sans-serif}
+.app{max-width:760px;margin:auto;padding:12px 12px 86px}
+header,.card{border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#07170d,#030906);box-shadow:0 0 20px #0a3b1a55}
+header{padding:14px;margin-bottom:10px}.brand{font-size:22px;font-weight:900;color:var(--g)}.sub{color:#a7b7ad;font-size:12px;margin-top:4px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.stat{border:1px solid #164a27;border-radius:10px;padding:9px}.k{font-size:11px;color:var(--muted)}.v{font-weight:800;margin-top:4px}.live{color:var(--g)}.bad{color:var(--red)}
+.card{padding:14px;margin-top:10px}.row{display:flex;gap:8px;align-items:center;justify-content:space-between}.title{font-size:17px;font-weight:900;color:var(--g)}select,button{border-radius:10px;border:1px solid #23843c;background:#07170d;color:#fff;padding:11px;font-weight:800}button{cursor:pointer}button.primary{background:var(--g);color:#001b06;border-color:var(--g)}button:disabled{opacity:.45}
+.scan{margin-top:12px;height:150px;border:1px solid #1b8d3e;border-radius:14px;position:relative;overflow:hidden;background:repeating-linear-gradient(0deg,#031007 0,#031007 15px,#06160b 16px);display:flex;align-items:center;justify-content:center}
+.matrix{position:absolute;inset:0;color:#178f35;opacity:.6;font:14px monospace;line-height:20px;word-break:break-all;padding:8px}.scanline{position:absolute;left:0;right:0;height:2px;background:#49ff66;box-shadow:0 0 12px #49ff66;top:0;animation:s 2s linear infinite}@keyframes s{to{top:100%}}
+.scanmsg{position:relative;z-index:2;font-weight:900;letter-spacing:1px;background:#020a05dd;padding:10px 14px;border-radius:10px}
+.progress{height:10px;background:#0b3018;border-radius:99px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0;background:var(--g);transition:width .2s}
+.pred{display:grid;grid-template-columns:1fr 1fr;gap:10px}.big{font-size:76px;line-height:1;color:var(--g);font-weight:900;text-align:center;margin:8px}.center{text-align:center}
+.conf{font-size:26px;font-weight:900;color:var(--g)}.note{color:#9db1a2;font-size:12px;line-height:1.4}
+.freq{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.digit{border:1px solid #154e28;border-radius:8px;padding:7px;text-align:center}.digit b{display:block;color:var(--g)}.digit small{color:#a4b3a8}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:7px;border-bottom:1px solid #12351e;text-align:left}th{color:#9db1a2}.win{color:var(--g)}.loss{color:var(--red)}
+.log{max-height:150px;overflow:auto;font:11px monospace;color:#9cb5a2;white-space:pre-wrap}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.foot{position:fixed;bottom:0;left:0;right:0;background:#020604ee;border-top:1px solid #174426;padding:10px;text-align:center;font-size:11px;color:#92a79a}
+@media(max-width:520px){.grid{grid-template-columns:repeat(2,1fr)}.pred{grid-template-columns:1fr}.freq{grid-template-columns:repeat(5,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+ <div class="brand">⚡ MOH MATCHES BOT</div>
+ <div class="sub">LIVE DIGIT VALIDATOR • 5 SECOND SCAN • NO AUTO-TRADING</div>
+ <div class="grid">
+  <div class="stat"><div class="k">MARKET</div><div class="v" id="symbolTxt">Volatility 100 (1s)</div></div>
+  <div class="stat"><div class="k">CONNECTION</div><div class="v" id="conn">OFFLINE</div></div>
+  <div class="stat"><div class="k">TICKS</div><div class="v" id="tickCount">0</div></div>
+ </div>
+</header>
+
+<div class="card">
+ <div class="row">
+  <select id="symbol">
+   <option value="1HZ100V">Volatility 100 (1s)</option>
+   <option value="1HZ75V">Volatility 75 (1s)</option>
+   <option value="1HZ50V">Volatility 50 (1s)</option>
+   <option value="1HZ25V">Volatility 25 (1s)</option>
+   <option value="1HZ10V">Volatility 10 (1s)</option>
+  </select>
+  <button id="connect" class="primary">CONNECT DERIV</button>
+ </div>
+ <div class="scan">
+  <div class="matrix" id="matrix"></div><div class="scanline"></div>
+  <div class="scanmsg" id="scanMsg">WAITING FOR LIVE DATA</div>
+ </div>
+ <div class="progress"><div class="bar" id="bar"></div></div>
+ <div class="row note" style="margin-top:7px"><span id="scanText">Connect first</span><span id="countdown">5.0s</span></div>
+</div>
+
+<div class="card pred">
+ <div>
+  <div class="title center">RECOMMENDED MATCH</div>
+  <div class="k center">MODEL PREDICTED NEXT DIGIT</div>
+  <div class="big" id="pred">—</div>
+  <div class="center"><span class="k">MODEL SCORE </span><span class="conf" id="score">—</span></div>
+ </div>
+ <div>
+  <div class="title">RESULT VALIDATION</div>
+  <p class="note">After a prediction is made, the next real tick is used as the outcome. This is the honest test of whether the model works.</p>
+  <div class="stat"><div class="k">LAST OUTCOME</div><div class="v" id="outcome">—</div></div>
+  <div class="stat" style="margin-top:8px"><div class="k">VALIDATED HIT RATE</div><div class="v" id="hitRate">—</div></div>
+ </div>
+</div>
+
+<div class="card">
+ <div class="row"><div class="title">DIGIT FREQUENCY</div><div class="note">Recent live/history sample</div></div>
+ <div class="freq" id="freq"></div>
+</div>
+
+<div class="card">
+ <div class="actions">
+  <button id="scan" class="primary" disabled>SCAN MARKET • 5 SEC</button>
+  <button id="clear">CLEAR VALIDATION</button>
+ </div>
+</div>
+
+<div class="card">
+ <div class="row"><div class="title">VALIDATION LOG</div><div class="note" id="sample">0 validated</div></div>
+ <table><thead><tr><th>#</th><th>Predicted</th><th>Actual</th><th>Result</th></tr></thead><tbody id="results"></tbody></table>
+</div>
+
+<div class="card">
+ <div class="title">CONNECTION LOG</div>
+ <div class="log" id="log"></div>
+</div>
+</div>
+<div class="foot">MOH uses observed market data only. Predictions are signals, not guaranteed future digits.</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const wsUrls=['wss://api.derivws.com/trading/v1/options/ws/public','wss://ws.binaryws.com/websockets/v3']; let wsIndex=0; let reconnectTimer=null;
+let ws=null, symbol=$('symbol').value, ticks=[], prices=[], pipSize=null, scanning=false, pending=null, validated=0, wins=0;
+let rows=JSON.parse(localStorage.getItem('moh_validation')||'[]');
+
+function log(s){$('log').textContent=new Date().toLocaleTimeString()+'  '+s+'\\n'+$('log').textContent}
+function setConn(text,good=false){$('conn').textContent=text;$('conn').className='v '+(good?'live':'bad')}
+function renderFreq(){
+ const c=Array(10).fill(0); prices.slice(-200).forEach(p=>c[digitOf(p)]++);
+ const n=Math.max(1,Math.min(200,prices.length));
+ $('freq').innerHTML=c.map((x,i)=>`<div class="digit"><b>${i}</b><small>${(x/n*100).toFixed(1)}%</small></div>`).join('');
+ $('tickCount').textContent=prices.length;
+}
+function digitOf(price){
+ let s=String(price);
+ if(pipSize!=null && Number.isFinite(pipSize)) {
+   const fixed=Number(price).toFixed(pipSize);
+   s=fixed;
+ }
+ const m=s.match(/(\d)$/);
+ return m?+m[1]:Math.abs(Math.floor(Number(price)*100))%10;
+}
+function addPrice(p){
+ const n=Number(p); if(!Number.isFinite(n))return;
+ prices.push(n); if(prices.length>1200)prices.shift(); renderFreq();
+ if(pending!==null){ const actual=digitOf(n); const ok=actual===pending; rows.unshift({p:pending,a:actual,ok,t:Date.now()}); validated++; if(ok)wins++; pending=null; updateResults(); $('outcome').textContent=actual+' • '+(ok?'WIN':'LOSS'); $('outcome').className='v '+(ok?'live':'bad'); }
+}
+function updateResults(){
+ localStorage.setItem('moh_validation',JSON.stringify(rows.slice(0,100)));
+ $('sample').textContent=validated+' validated';
+ $('hitRate').textContent=validated?((wins/validated)*100).toFixed(1)+'%':'—';
+ $('results').innerHTML=rows.slice(0,20).map((r,i)=>`<tr><td>${i+1}</td><td>${r.p}</td><td>${r.a}</td><td class="${r.ok?'win':'loss'}">${r.ok?'WIN':'LOSS'}</td></tr>`).join('');
+}
+function modelPredict(){
+ const a=Array(10).fill(0), b=Array(10).fill(0), last=prices.slice(-200), short=prices.slice(-40);
+ last.forEach(p=>a[digitOf(p)]++); short.forEach(p=>b[digitOf(p)]++);
+ let best=0, bestScore=-1;
+ for(let d=0;d<10;d++){
+   const long=a[d]/Math.max(1,last.length), sh=b[d]/Math.max(1,short.length);
+   const rec=short.slice().reverse().findIndex(p=>digitOf(p)===d);
+   const recScore=rec<0?0:Math.max(0,1-rec/short.length);
+   const score=.45*long+.40*sh+.15*recScore;
+   if(score>bestScore){bestScore=score;best=d}
+ }
+ const baseline=1/10, rel=Math.max(0,Math.min(99,50+(bestScore-baseline)*600));
+ return {d:best,score:rel};
+}
+function matrixText(){let s='';const chars='0123456789ABCDEF';for(let i=0;i<520;i++)s+=chars[Math.floor(Math.random()*chars.length)];$('matrix').textContent=s}
+setInterval(matrixText,180); matrixText();
+
+function scan(){
+ if(scanning||prices.length<30)return;
+ scanning=true;$('scan').disabled=true;$('scanMsg').textContent='SCANNING MARKET…';$('scanText').textContent='Collecting live market data…';
+ const start=performance.now(), dur=5000;
+ function step(now){let p=Math.min(1,(now-start)/dur);$('bar').style.width=(p*100)+'%';$('countdown').textContent=(5-p*5).toFixed(1)+'s'; if(p<1)requestAnimationFrame(step);else{
+   const r=modelPredict(); $('pred').textContent=r.d; $('score').textContent=r.score.toFixed(1)+'%'; pending=r.d;
+   $('scanMsg').textContent='PREDICTION READY'; $('scanText').textContent='Prediction waiting for the next real tick'; scanning=false;$('scan').disabled=false;
+ }}
+ requestAnimationFrame(step);
+}
+function connect(startIndex=0){
+ if(ws){try{ws.onclose=null;ws.close()}catch(e){}}
+ clearTimeout(reconnectTimer); wsIndex=startIndex; symbol=$('symbol').value; $('symbolTxt').textContent=$('symbol').selectedOptions[0].text; setConn('CONNECTING'); $('scan').disabled=true; $('scanMsg').textContent='CONNECTING TO DERIV…'; $('scanText').textContent='Opening public market-data stream…';
+ const url=wsUrls[wsIndex]; log('Trying '+url);
+ try{ws=new WebSocket(url)}catch(e){log('Browser blocked WebSocket: '+e.message); if(wsIndex+1<wsUrls.length) return connect(wsIndex+1); setConn('ERROR'); return;}
+ ws.onopen=()=>{
+   setConn('CONNECTED',true);log('WebSocket OPEN');
+   ws.send(JSON.stringify({active_symbols:'brief',product_type:'basic',req_id:10}));
+   ws.send(JSON.stringify({ticks_history:symbol,end:'latest',count:1000,style:'ticks',subscribe:0,req_id:1}));
+   ws.send(JSON.stringify({ticks:symbol,subscribe:1,req_id:2}));
+ };
+ ws.onmessage=e=>{
+  let d;try{d=JSON.parse(e.data)}catch{return}
+  if(d.error){log('DERIV ERROR: '+(d.error.message||d.error.code)); if(wsIndex+1<wsUrls.length){log('Trying fallback endpoint…'); return connect(wsIndex+1)} setConn('ERROR'); $('scanMsg').textContent='DERIV CONNECTION ERROR'; return}
+  if(d.msg_type==='active_symbols'){log('Market list received');}
+  if(d.msg_type==='history'&&d.history){
+    pipSize=d.pip_size??null;
+    prices=(d.history.prices||[]).map(Number).filter(Number.isFinite).slice(-1000);
+    renderFreq();log('Loaded '+prices.length+' historical ticks');
+    if(prices.length>=30){setConn('LIVE DATA READY',true);$('scan').disabled=false}
+  }
+  if(d.msg_type==='tick'&&d.tick){
+    if(d.tick.symbol && d.tick.symbol!==symbol)return;
+    if(d.tick.pip_size!=null)pipSize=d.tick.pip_size;
+    addPrice(d.tick.quote);
+    setConn('LIVE',true);
+    if(prices.length>=30)$('scan').disabled=false;
+  }
+ };
+ ws.onerror=()=>{log('WebSocket error');};
+ ws.onclose=()=>{if(!scanning)setConn('DISCONNECTED'); log('WebSocket closed'); if(wsIndex+1<wsUrls.length){log('Trying fallback endpoint…'); reconnectTimer=setTimeout(()=>connect(wsIndex+1),500)}else{reconnectTimer=setTimeout(()=>connect(0),2500)}};
+}
+$('connect').onclick=connect;
+$('scan').onclick=scan;
+$('symbol').onchange=()=>{if(ws)connect()};
+$('clear').onclick=()=>{rows=[];validated=0;wins=0;pending=null;localStorage.removeItem('moh_validation');$('pred').textContent='—';$('outcome').textContent='—';$('score').textContent='—';updateResults()};
+updateResults();
+</script>
+</body>
+</html>
